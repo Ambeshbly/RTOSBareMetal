@@ -17,6 +17,7 @@
  */
 
 #include <stdint.h>
+#include <main.h>
 
 void task1_handler(void);  // This is task 1.
 void task2_handler(void);  // This is task 2.
@@ -31,7 +32,7 @@ void init_systick(uint32_t tick_hz);
 void switch_msp_to_psp();
 
 // Global data space.
-uint32_t psp_of_tasks[MAX_TASKS] = {};
+uint32_t psp_of_tasks[MAX_TASKS] = {(uint32_t)T1_STACK_START, (uint32_t)T2_STACK_START, (uint32_t)T3_STACK_START, (uint32_t)T4_STACK_START};
 uint32_t task_handlers[MAX_TASKS] = {(uint32_t)task1_handler, (uint32_t)task2_handler, (uint32_t)task3_handler, (uint32_t)task4_handler};
 
 
@@ -39,7 +40,7 @@ int main(void)
 {
 	enable_processor_faults();
 
-	init_sched_stack(SCHED_START_START);
+	init_sched_stack(SCHED_STACK_START);
 
 	init_tasks_stack();
 
@@ -63,7 +64,7 @@ void enable_processor_faults(void)
 	*pSHCSR |= (1 << 18); // Enable UsageFault status.
 }
 
-void __attribute__((naked)) init_shed_stack(uint32_t sched_top_of_stack)
+void __attribute__((naked)) init_sched_stack(uint32_t sched_top_of_stack)
 {
    __asm volatile("MSR MSP, %0": : "r" (sched_top_of_stack): );
    __asm volatile("BX LR");
@@ -75,18 +76,18 @@ void init_tasks_stack(void)
 
     for(int i = 0; i < MAX_TASKS; i++)
     {
-    	pPSP = (unit32_t *) psp_of_tasks[i];
+    	pPSP = (uint32_t *)psp_of_tasks[i];
 
     	// xPSR
-    	*pPSP--;
+    	pPSP--;
     	*pPSP = DUMMY_XPSR;    // Indicate thumb state.
 
     	// PC
-    	*pPSP--;
+    	pPSP--;
     	*pPSP = task_handlers[i]; // Handle function of task.
 
     	// LR
-    	*pPSP--;
+    	pPSP--;
     	*pPSP = 0xFFFFFFFD; // EXC_RETURN -  Return in thread mode and use PSP
 
     	// Set register dummy value to 0, (R0-R3, R12 and R4-411)

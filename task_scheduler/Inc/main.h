@@ -22,7 +22,7 @@
 
 #define SCHED_STACK_START     ((T4_STACK_START) - (TASK_STACK_SIZE))
 
-#define MAX TASKS             4U
+#define MAX_TASKS             4U
 
 #define DUMMY_XPSR            0x01000000U
 
