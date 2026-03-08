@@ -17,6 +17,7 @@
  */
 
 #include <stdint.h>
+#include <stdio.h>
 #include <main.h>
 
 void task1_handler(void);  // This is task 1.
@@ -34,7 +35,7 @@ void switch_msp_to_psp();
 // Global data space.
 uint32_t psp_of_tasks[MAX_TASKS] = {(uint32_t)T1_STACK_START, (uint32_t)T2_STACK_START, (uint32_t)T3_STACK_START, (uint32_t)T4_STACK_START};
 uint32_t task_handlers[MAX_TASKS] = {(uint32_t)task1_handler, (uint32_t)task2_handler, (uint32_t)task3_handler, (uint32_t)task4_handler};
-
+uint32_t current_task = 0;
 
 int main(void)
 {
@@ -127,46 +128,130 @@ void init_systick(uint32_t tick_hz)
 	*pSCSR |= (1 << 0); // Enables the counter.
 }
 
+uint32_t get_psp_value(void)
+{
+	return psp_of_tasks[current_task];
+}
+
 void __attribute__((naked)) switch_msp_to_psp(void)
 {
+    // 1. Initialize PSP
+    __asm volatile("PUSH {LR}");         // push LR so that later, we can use LR to return.
+    __asm volatile("BL get_psp_value");  // get psp of current task.
+    __asm volatile("MSR PSP, R0");
 
+    // 2. switch SP from MSP to PSP using CONTROL register.
+    __asm volatile("MOV R0, #0x02");
+    __asm volatile("MSR CONTROL, R0");
+
+    // 3. Go back to caller.
+    __asm volatile("BX LR");
+}
+
+void save_psp_value(uint32_t psp_value)
+{
+	psp_of_tasks[current_task] = psp_value;
+}
+
+void update_next_task(void)
+{
+	current_task++;
+	current_task = current_task % MAX_TASKS;
 }
 
 void SysTick_Handler(void)
 {
+    // Save LR
+    __asm volatile("PUSH {LR}");
 
+    /**
+     * Save the context of current task.
+     * 1. Get the PSP of current task.
+     * 2. Save SF2(R4-R11) and decrement PSP
+     * 3. Save current PSP
+     */
+
+    // 1. Get the PSP of current task.
+    __asm volatile("MRS R0, PSP");
+
+    // 2. Save SF2(R4-R11) and decrement PSP.
+    // __asm volatile("PUSH {R4,R11}"); // Cant 't use PUSH as it will write SF2 on MSP.
+    __asm volatile("STMDB R0!, {R4-R11}");
+
+    // 3. Save the current PSP.
+    __asm volatile("BL save_psp_value");
+
+    // Decide on next task based on scheduling algo, e.g. Round Robin.
+    __asm volatile("BL update_next_task");
+
+
+    /**
+     * Retrieve context of next task.
+     * 1. Get the PSP of the next task.
+     * 2. POP SF2(R4-R11) and increment PSP.
+     * 3. set PSP to current PSP.
+     */
+
+    // 1. Get the PSP of the next task.
+    __asm volatile("BL get_psp_value");
+
+    // 2. POP SF2(R4-R11) and increment PSP.
+    __asm volatile("LDMIA R0!, {R4-R11}");
+
+    // 3. Set SP = PSP
+    __asm volatile("MSR PSP, R0");
+
+    // POP LR and branch.
+    __asm volatile("POP {LR}");
+    __asm volatile("BX LR");
 }
 
 void task1_handler(void)
 {
-
+    while(1)
+    {
+    	printf("This is task 1.\n");
+    }
 }
 void task2_handler(void)
 {
-
+    while(1)
+    {
+    	printf("This is task 2.\n");
+    }
 }
 void task3_handler(void)
 {
-
+    while(1)
+    {
+    	printf("This is task 3.\n");
+    }
 }
 void task4_handler(void)
 {
-
+    while(1)
+    {
+    	printf("This is task 4.\n");
+    }
 }
 
 void HardFault_Handler(void)
 {
-
+    printf("Exception: HardFault.\n");
+    while(1);
 }
 void MemManage_Handler(void)
 {
-
+    printf("Exception: MemManage Fault.\n");
+    while(1);
 }
 void BusFault_Handler(void)
 {
-
+    printf("Exception: BusFault.\n");
+    while(1);
 }
 void UsageFault_Handler(void)
 {
-
+    printf("Exception: UsageFault.\n");
+    while(1);
 }
