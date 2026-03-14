@@ -140,6 +140,9 @@ void __attribute__((naked)) switch_msp_to_psp(void)
     __asm volatile("BL get_psp_value");  // get psp of current task.
     __asm volatile("MSR PSP, R0");
 
+    // Restore LR.
+    __asm volatile("POP {LR}");
+
     // 2. switch SP from MSP to PSP using CONTROL register.
     __asm volatile("MOV R0, #0x02");
     __asm volatile("MSR CONTROL, R0");
@@ -159,7 +162,7 @@ void update_next_task(void)
 	current_task = current_task % MAX_TASKS;
 }
 
-void SysTick_Handler(void)
+__attribute((naked)) void SysTick_Handler(void)
 {
     // Save LR
     __asm volatile("PUSH {LR}");
